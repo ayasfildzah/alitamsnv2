@@ -1,0 +1,331 @@
+// ignore_for_file: file_names, unnecessary_new
+
+import 'dart:async';
+import 'dart:io';
+
+import 'package:alitamsniosmobile/Screendone/attendancedone.dart';
+import 'package:alitamsniosmobile/fragment.dart';
+import 'package:alitamsniosmobile/home.dart';
+import 'package:alitamsniosmobile/pages/checkindone.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+String? finalname;
+
+class complaintupdate extends StatefulWidget {
+  // final data;
+  // formcuti(this.data);
+
+  @override
+  _complaintupdateState createState() => _complaintupdateState();
+}
+
+// ignore: camel_case_types
+class _complaintupdateState extends State<complaintupdate> {
+  TextEditingController form = TextEditingController();
+  var locationMessage = "";
+  var lat = " ";
+  var lng = " ";
+  Position? posisition;
+  File? _image;
+  final picker = ImagePicker();
+  // String idloc = '';
+  // String latt = " ";
+  // String long = '';
+  // String nameloc = '';
+  String ket = "";
+  DateTime now = DateTime.now();
+  String status = 'Cuti';
+  late SharedPreferences sharedPreferences;
+  String username = '';
+  int? showid;
+  String phone = '';
+  String stts = '';
+  String id = "";
+  final Geolocator geolocator = Geolocator();
+  String _currentAddress = "";
+  bool _visible = false;
+
+  getStringValuesSF() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    //Return String
+    username = prefs.getString('name')!;
+    showid = prefs.getInt('id')!;
+    phone = prefs.getString('phone')!;
+    // nameloc = '${widget.data.name}';
+    // idloc = '${widget.data.id}';
+    // latt = '${widget.data.latitude}';
+    // long = '${widget.data.longitude}';
+
+    //print("lokasi ="+ latt);
+    setState(() {
+      finalname = username;
+    });
+
+    return username;
+  }
+
+  void initState() {
+    super.initState();
+    _getCurrentLocation();
+    getPref();
+  }
+
+  getPref() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    setState(() {
+      var stts = preferences.getString("status");
+    });
+    await preferences.setString('status', stts);
+  }
+
+  _getCurrentLocation() {
+    Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.best,
+            forceAndroidLocationManager: true)
+        .then((Position position) {
+      setState(() {
+        posisition = position;
+        _getAddressFromLatLng();
+      });
+    }).catchError((e) {
+      print(e);
+    });
+  }
+
+  _getAddressFromLatLng() async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+          posisition!.latitude, posisition!.longitude);
+      Placemark place = placemarks[0];
+      setState(() {
+        _currentAddress =
+            "${place.street}, ${place.subLocality}, ${place.locality}, ${place.country}";
+      });
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  Future choiceImage() async {
+    final pickedImage = await ImagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 10,
+    );
+    setState(() {
+      _image = File(pickedImage.path);
+    });
+  }
+
+  Future upload(File imageFile) async {
+    id = showid.toString();
+    posisition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+    var uri = Uri.parse("https://alita.massindo.com/api/v1/complaint_details");
+    lat = '${posisition!.latitude}';
+    lng = '${posisition!.longitude}';
+    var request = http.MultipartRequest("POST", uri);
+    Map<String, String> headers = {
+      'Content-Type': 'multipart/form-data',
+    };
+    request.headers["Content-Type"] = 'multipart/form-data';
+    request.fields['complaint[complaint_id]'] = username;
+    request.fields['complaint[note]'] = id;
+    request.fields['complaint[creator]'] = form.value.text;
+    request.fields['complaint[creator_id]'] = lng;
+    request.fields['complaint[visit_date]'] = lat;
+    request.fields['complaint[visit_time]'] = status;
+    request.fields['complaint[complaint_status_id]'] = _currentAddress;
+    request.fields['complaint[name]'] = now.toString();
+
+    var pic = await http.MultipartFile.fromPath(
+      "complaint[image]",
+      imageFile.path,
+    );
+
+    //var pic = http.MultipartFile("image",stream,length,filename: basename(imageFile.path));
+
+    request.files.add(pic);
+    var response = await request.send();
+
+    if (response.statusCode == 200) {
+      Navigator.pushReplacement(
+          context, new MaterialPageRoute(builder: (context) => MyDashboard()));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Selamat Data Berhasil di Input")));
+    } else {
+      print("uploaded faild");
+    }
+  }
+
+  Widget build(BuildContext context) {
+    getStringValuesSF();
+
+    // print(_currentAddress);
+    return WillPopScope(
+        onWillPop: () async => false,
+        child: new Scaffold(
+            appBar: AppBar(
+              automaticallyImplyLeading: false,
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                // crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: EdgeInsets.fromLTRB(0, 10, 0, 80),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.arrow_back_ios),
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => Home()));
+                          },
+                        ),
+                        SizedBox(
+                          height: 10,
+                        ),
+                        Text('Form Complaint Update'),
+                      ],
+                    ),
+                  )
+                ],
+              ),
+              brightness: Brightness.dark,
+              backgroundColor: Colors.transparent,
+              elevation: 0.0,
+              toolbarHeight: 120,
+              flexibleSpace: Container(
+                padding: EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage('assets/bginput.png'),
+                    fit: BoxFit.fill,
+                  ),
+                ),
+              ),
+            ),
+            body: SingleChildScrollView(
+              // color: Colors.white,
+              //   width: double.infinity,
+              //   height: double.infinity,
+              child: Padding(
+                  padding: EdgeInsets.all(15.0),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Container(
+                          alignment: Alignment.center,
+                          child: Text(
+                              "Mohon Periksa Kembali dan Isi Dengan Teliti : ",
+                              style: TextStyle(
+                                  fontFamily: 'OpenSans',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center),
+                        ),
+                        SizedBox(height: 40.0),
+                        Text("Keterangan : ",
+                            style:
+                                TextStyle(fontFamily: 'OpenSans', fontSize: 16),
+                            textAlign: TextAlign.left),
+                        SizedBox(height: 10.0),
+                        TextFormField(
+                          onSaved: (e) => ket = e!,
+                          controller: form,
+                          decoration: InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Keterangan'),
+                        ),
+                        SizedBox(height: 5.0),
+                        Container(
+                          alignment: Alignment.center,
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.photo_camera_rounded,
+                              size: 50.0,
+                            ),
+                            onPressed: () {
+                              choiceImage();
+                              setState(() {
+                                _visible = !_visible;
+                              });
+                            },
+                          ),
+                        ),
+                        SizedBox(height: 20.0),
+                        Container(
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 200,
+                                height: 250,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(20)),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      blurRadius: 10.0,
+                                      offset: Offset(0.0, 5.0),
+                                    ),
+                                  ],
+                                ),
+                                child: _image == null
+                                    ? Text(
+                                        'No image',
+                                        textAlign: TextAlign.center,
+                                      )
+                                    : Image.file(_image!),
+                              ),
+                              SizedBox(height: 20),
+                              Visibility(
+                                visible: _visible,
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  child: MaterialButton(
+                                    elevation: 5.0,
+                                    child: Text('Upload Image'),
+                                    onPressed: () {
+                                      // create();
+                                      upload(_image!);
+                                      setState(() {
+                                        _visible = !_visible;
+                                      });
+                                      // showDialog(
+                                      //     context: context,
+                                      //     builder: (context) {
+                                      //       return AlertDialog(
+                                      //         title: Text("Tunggu"),
+                                      //         content: Text(
+                                      //             'Sedang Proses Upload'),
+                                      //       );
+                                      //     });
+                                    },
+                                    padding: EdgeInsets.all(15.0),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30.0),
+                                    ),
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ])),
+            )));
+  }
+}
